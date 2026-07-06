@@ -249,7 +249,8 @@ app.put("/api/production/:id", async (req, res) => {
             initData,
             cupsCount,
             cupSize,
-            cupType
+            cupType,
+            date
         } = req.body;
 
         console.log("Checking Telegram signature...");
@@ -287,7 +288,7 @@ app.put("/api/production/:id", async (req, res) => {
         if (cupsCount !== undefined) production.cupsCount = cupsCount;
         if (cupSize !== undefined) production.cupSize = cupSize;
         if (cupType !== undefined) production.cupType = cupType;
-
+        if (date !== undefined) production.date = date;
         await production.save();
 
         console.log("✅ Production updated");
@@ -304,6 +305,68 @@ app.put("/api/production/:id", async (req, res) => {
     catch (error) {
 
         console.error("❌ PRODUCTION UPDATE ERROR");
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+});
+
+app.delete("/api/production/:id", async (req, res) => {
+
+    console.log("➡ PRODUCTION DELETE REQUEST");
+
+    try {
+
+        const { id } = req.params;
+        const { initData } = req.body;
+
+        console.log("Checking Telegram signature...");
+
+        validate(initData, process.env.BOT_TOKEN);
+
+        console.log("✅ Telegram signature is valid");
+
+        const telegram = parse(initData);
+
+        console.log("Telegram user:");
+
+        console.log(telegram.user);
+
+        console.log("Searching production...");
+
+        const production = await Production.findOneAndDelete({
+            _id: id,
+            telegramId: telegram.user.id
+        });
+
+        if (!production) {
+
+            console.log("❌ Production not found or belongs to another user");
+
+            return res.status(404).json({
+                success: false,
+                message: "Запис не знайдено"
+            });
+
+        }
+
+        console.log("✅ Production deleted");
+
+        res.json({
+            success: true,
+            message: "Запис видалено"
+        });
+
+    }
+    catch (error) {
+
+        console.error("❌ PRODUCTION DELETE ERROR");
 
         console.error(error);
 
