@@ -235,6 +235,87 @@ app.post("/api/production/list", async (req, res) => {
 
 });
 
+app.put("/api/production/:id", async (req, res) => {
+
+    console.log("➡ PRODUCTION UPDATE REQUEST");
+
+    console.log(req.body);
+
+    try {
+
+        const { id } = req.params;
+
+        const {
+            initData,
+            cupsCount,
+            cupSize,
+            cupType
+        } = req.body;
+
+        console.log("Checking Telegram signature...");
+
+        validate(initData, process.env.BOT_TOKEN);
+
+        console.log("✅ Telegram signature is valid");
+
+        const telegram = parse(initData);
+
+        console.log("Telegram user:");
+
+        console.log(telegram.user);
+
+        console.log("Searching production...");
+
+        const production = await Production.findOne({
+            _id: id,
+            telegramId: telegram.user.id
+        });
+
+        if (!production) {
+
+            console.log("❌ Production not found or belongs to another user");
+
+            return res.status(404).json({
+                success: false,
+                message: "Запись не найдена"
+            });
+
+        }
+
+        console.log("✅ Production found. Updating...");
+
+        if (cupsCount !== undefined) production.cupsCount = cupsCount;
+        if (cupSize !== undefined) production.cupSize = cupSize;
+        if (cupType !== undefined) production.cupType = cupType;
+
+        await production.save();
+
+        console.log("✅ Production updated");
+
+        console.log(production);
+
+        res.json({
+            success: true,
+            message: "Запись обновлена",
+            production
+        });
+
+    }
+    catch (error) {
+
+        console.error("❌ PRODUCTION UPDATE ERROR");
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+});
+
 // ===== Health =====
 
 app.get("/", (req, res) => {
