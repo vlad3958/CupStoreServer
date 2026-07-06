@@ -196,7 +196,7 @@ app.listen(PORT, () => {
     console.log("======================================");
     console.log("🚀 Server started");
     console.log(`PORT: ${PORT}`);
-    console.log(`Mongo URI exists: ${!!process.env.MONGODB_URI}`);
+    console.log(`Mongo URI exists: ${!!process.env.MONGO_URI}`);
     console.log(`Bot token exists: ${!!process.env.BOT_TOKEN}`);
     console.log("======================================");
 
