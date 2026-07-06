@@ -177,6 +177,64 @@ app.post("/api/production", async (req, res) => {
 
 });
 
+app.post("/api/production/list", async (req, res) => {
+
+    console.log("➡ PRODUCTION LIST REQUEST");
+
+    try {
+
+        const { initData } = req.body;
+
+        if (!initData) {
+            return res.status(400).json({
+                success: false,
+                message: "initData is missing"
+            });
+        }
+
+        console.log("Checking Telegram signature...");
+
+        validate(initData, process.env.BOT_TOKEN);
+
+        console.log("✅ Telegram signature is valid");
+
+        const telegram = parse(initData);
+
+        console.log("Telegram user:");
+
+        console.log(telegram.user);
+
+        console.log("Loading productions...");
+
+        const productions = await Production
+            .find({
+                telegramId: telegram.user.id
+            })
+            .sort({ date: -1 });
+
+        console.log(`Found ${productions.length} records`);
+
+        res.json({
+            success: true,
+            productions
+        });
+
+    }
+    catch (error) {
+
+        console.error("❌ PRODUCTION LIST ERROR");
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+});
+
 // ===== Health =====
 
 app.get("/", (req, res) => {
