@@ -45,7 +45,7 @@ function isAdmin(telegramId) {
     return ADMIN_IDS.includes(telegramId);
 }
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
 
     console.log("➡ LOGIN REQUEST");
 
