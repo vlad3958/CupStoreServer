@@ -35,6 +35,16 @@ app.use((req, res, next) => {
     next();
 });
 
+const ADMIN_IDS = (process.env.ADMIN_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .map(Number);
+
+function isAdmin(telegramId) {
+    return ADMIN_IDS.includes(telegramId);
+}
+
 app.post("/api/login", (req, res) => {
 
     console.log("➡ LOGIN REQUEST");
@@ -66,7 +76,8 @@ app.post("/api/login", (req, res) => {
 
         res.json({
             success: true,
-            user: data.user
+            user: data.user,
+            isAdmin: isAdmin(data.user.id)
         });
 
     }
@@ -367,6 +378,73 @@ app.delete("/api/production/:id", async (req, res) => {
     catch (error) {
 
         console.error("❌ PRODUCTION DELETE ERROR");
+
+        console.error(error);
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
+});
+
+app.post("/api/admin/overview", async (req, res) => {
+
+    console.log("➡ ADMIN OVERVIEW REQUEST");
+
+    try {
+
+        const { initData } = req.body;
+
+        if (!initData) {
+            return res.status(400).json({
+                success: false,
+                message: "initData is missing"
+            });
+        }
+
+        console.log("Checking Telegram signature...");
+
+        validate(initData, process.env.BOT_TOKEN);
+
+        console.log("✅ Telegram signature is valid");
+
+        const telegram = parse(initData);
+
+        console.log("Telegram user:");
+
+        console.log(telegram.user);
+
+        if (!isAdmin(telegram.user.id)) {
+
+            console.log("❌ Not an admin, access denied");
+
+            return res.status(403).json({
+                success: false,
+                message: "Доступ заборонено"
+            });
+
+        }
+
+        console.log("✅ Admin access granted. Loading data...");
+
+        const users = await User.find({});
+        const productions = await Production.find({}).sort({ date: -1 });
+
+        console.log(`Found ${users.length} users, ${productions.length} productions`);
+
+        res.json({
+            success: true,
+            users,
+            productions
+        });
+
+    }
+    catch (error) {
+
+        console.error("❌ ADMIN OVERVIEW ERROR");
 
         console.error(error);
 
