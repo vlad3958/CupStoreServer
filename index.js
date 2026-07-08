@@ -69,14 +69,25 @@ app.post("/api/login", (req, res) => {
         console.log("✅ Telegram signature is valid");
 
         const data = parse(initData);
-        console.log("DEBUG env ADMIN_IDS raw:", JSON.stringify(process.env.ADMIN_IDS));
-        console.log("DEBUG parsed ADMIN_IDS:", ADMIN_IDS);
-        console.log("DEBUG user.id:", data.user.id, typeof data.user.id);
-        console.log("DEBUG isAdmin result:", isAdmin(data.user.id));
 
         console.log("User:");
 
         console.log(data.user);
+
+        console.log("Upserting user...");
+
+        await User.findOneAndUpdate(
+            { telegramId: data.user.id },
+            {
+                telegramId: data.user.id,
+                firstName: data.user.first_name,
+                lastName: data.user.last_name,
+                username: data.user.username
+            },
+            { upsert: true, new: true }
+        );
+
+        console.log("✅ User upserted");
 
         res.json({
             success: true,
@@ -141,8 +152,8 @@ app.post("/api/production", async (req, res) => {
             user = await User.create({
 
                 telegramId: telegram.user.id,
-                firstName: telegram.user.firstName,
-                lastName: telegram.user.lastName,
+                firstName: telegram.user.first_name,
+                lastName: telegram.user.last_name,
                 username: telegram.user.username
 
             });
