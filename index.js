@@ -69,6 +69,10 @@ app.post("/api/login", (req, res) => {
         console.log("✅ Telegram signature is valid");
 
         const data = parse(initData);
+        console.log("DEBUG env ADMIN_IDS raw:", JSON.stringify(process.env.ADMIN_IDS));
+        console.log("DEBUG parsed ADMIN_IDS:", ADMIN_IDS);
+        console.log("DEBUG user.id:", data.user.id, typeof data.user.id);
+        console.log("DEBUG isAdmin result:", isAdmin(data.user.id));
 
         console.log("User:");
 
