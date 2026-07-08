@@ -473,13 +473,52 @@ app.post("/api/admin/overview", async (req, res) => {
 });
 
 // ===== Telegram Bot (admin broadcast) =====
+// Uses native fetch (Node 18+) — no external dependency needed.
 
-const TelegramBot = require("node-telegram-bot-api");
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+async function tgApi(method, payload) {
+    const res = await fetch(`${TG_API}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+}
 
-// When an admin writes to the bot directly (private chat), broadcast to all users
-bot.on("message", async (msg) => {
+// Long-poll updates from Telegram
+async function pollUpdates(offset = 0) {
+    try {
+        const data = await tgApi("getUpdates", {
+            offset,
+            timeout: 30,
+            allowed_updates: ["message"]
+        });
+
+        if (!data.ok) {
+            console.error("❌ getUpdates error:", data.description);
+            return offset;
+        }
+
+        for (const update of data.result) {
+            const nextOffset = update.update_id + 1;
+
+            const msg = update.message;
+            if (msg) {
+                await handleAdminMessage(msg);
+            }
+
+            offset = nextOffset;
+        }
+    } catch (err) {
+        console.error("❌ Polling error:", err.message);
+    }
+
+    return offset;
+}
+
+async function handleAdminMessage(msg) {
     try {
         const chat = msg.chat;
 
@@ -503,26 +542,34 @@ bot.on("message", async (msg) => {
 
         for (const user of users) {
             try {
-                const opts = { parse_mode: "HTML" };
-
                 if (msg.photo) {
                     const photoId = msg.photo[msg.photo.length - 1].file_id;
-                    await bot.sendPhoto(user.telegramId, photoId, {
+                    await tgApi("sendPhoto", {
+                        chat_id: user.telegramId,
+                        photo: photoId,
                         caption: text,
-                        ...opts
+                        parse_mode: "HTML"
                     });
                 } else if (msg.document) {
-                    await bot.sendDocument(user.telegramId, msg.document.file_id, {
+                    await tgApi("sendDocument", {
+                        chat_id: user.telegramId,
+                        document: msg.document.file_id,
                         caption: text,
-                        ...opts
+                        parse_mode: "HTML"
                     });
                 } else if (msg.video) {
-                    await bot.sendVideo(user.telegramId, msg.video.file_id, {
+                    await tgApi("sendVideo", {
+                        chat_id: user.telegramId,
+                        video: msg.video.file_id,
                         caption: text,
-                        ...opts
+                        parse_mode: "HTML"
                     });
                 } else {
-                    await bot.sendMessage(user.telegramId, text, opts);
+                    await tgApi("sendMessage", {
+                        chat_id: user.telegramId,
+                        text,
+                        parse_mode: "HTML"
+                    });
                 }
                 success++;
             } catch (err) {
@@ -533,18 +580,27 @@ bot.on("message", async (msg) => {
 
         console.log(`✅ Broadcast done. success=${success} failed=${failed}`);
 
-        await bot.sendMessage(
-            msg.from.id,
-            `✅ Розсилка завершена.\nУспішно: ${success}\nНе вдалося: ${failed}`
-        );
+        await tgApi("sendMessage", {
+            chat_id: msg.from.id,
+            text: `✅ Розсилка завершена.\nУспішно: ${success}\nНе вдалося: ${failed}`
+        });
     } catch (err) {
         console.error("❌ BROADCAST ERROR:", err);
     }
-});
+}
 
-bot.on("polling_error", (err) => {
-    console.error("❌ Bot polling error:", err.message);
-});
+// Start polling loop (non-blocking)
+(async () => {
+    if (!BOT_TOKEN) {
+        console.error("❌ BOT_TOKEN missing, bot disabled");
+        return;
+    }
+    console.log("🤖 Bot polling started");
+    let offset = 0;
+    while (true) {
+        offset = await pollUpdates(offset);
+    }
+})();
 
 // ===== Health =====
 
