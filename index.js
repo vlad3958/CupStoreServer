@@ -472,6 +472,80 @@ app.post("/api/admin/overview", async (req, res) => {
 
 });
 
+// ===== Telegram Bot (admin broadcast) =====
+
+const TelegramBot = require("node-telegram-bot-api");
+
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+
+// When an admin writes to the bot directly (private chat), broadcast to all users
+bot.on("message", async (msg) => {
+    try {
+        const chat = msg.chat;
+
+        // Only react to private messages from an admin
+        if (chat.type !== "private") return;
+        if (!isAdmin(msg.from.id)) return;
+
+        // Ignore commands (e.g. /start) so they don't get broadcast
+        if (msg.text && msg.text.startsWith("/")) return;
+
+        const text = msg.text || msg.caption || "";
+        if (!text && !msg.photo && !msg.document && !msg.video) return;
+
+        console.log(`📢 Admin ${msg.from.id} broadcast received`);
+
+        const users = await User.find({});
+        console.log(`Broadcasting to ${users.length} users...`);
+
+        let success = 0;
+        let failed = 0;
+
+        for (const user of users) {
+            try {
+                const opts = { parse_mode: "HTML" };
+
+                if (msg.photo) {
+                    const photoId = msg.photo[msg.photo.length - 1].file_id;
+                    await bot.sendPhoto(user.telegramId, photoId, {
+                        caption: text,
+                        ...opts
+                    });
+                } else if (msg.document) {
+                    await bot.sendDocument(user.telegramId, msg.document.file_id, {
+                        caption: text,
+                        ...opts
+                    });
+                } else if (msg.video) {
+                    await bot.sendVideo(user.telegramId, msg.video.file_id, {
+                        caption: text,
+                        ...opts
+                    });
+                } else {
+                    await bot.sendMessage(user.telegramId, text, opts);
+                }
+                success++;
+            } catch (err) {
+                failed++;
+                console.error(`❌ Failed to send to ${user.telegramId}:`, err.message);
+            }
+        }
+
+        console.log(`✅ Broadcast done. success=${success} failed=${failed}`);
+
+        await bot.sendMessage(
+            msg.from.id,
+            `✅ Розсилка завершена.\nУспішно: ${success}\nНе вдалося: ${failed}`
+        );
+    } catch (err) {
+        console.error("❌ BROADCAST ERROR:", err);
+    }
+});
+
+bot.on("polling_error", (err) => {
+    console.error("❌ Bot polling error:", err.message);
+});
+
 // ===== Health =====
 
 app.get("/", (req, res) => {
